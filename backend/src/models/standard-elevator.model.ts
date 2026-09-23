@@ -2,8 +2,7 @@ import { BaseElevator } from "./base-elevator.model.js";
 import { Direction, DoorState, ElevatorStatus } from "../types/elevator.type.js";
 
 export class StandardElevator extends BaseElevator {
-    private upDestinations: Set<number> = new Set();
-    private downDestinations: Set<number> = new Set();
+    private destinationsSet: Set<number> = new Set();
     private isDoorHelpOpen: boolean = false;
     private doorTimer: NodeJS.Timeout | null = null;
 
@@ -28,11 +27,7 @@ export class StandardElevator extends BaseElevator {
             return;
         }
 
-        if (floor > this.currentFloor) {
-            this.upDestinations.add(floor);
-        } else {
-            this.downDestinations.add(floor);
-        }
+        this.destinationsSet.add(floor);
 
         if (this.direction === Direction.IDLE) {
             this.direction = floor > this.currentFloor ? Direction.UP : Direction.DOWN;
@@ -71,23 +66,11 @@ export class StandardElevator extends BaseElevator {
     }
 
     public shouldStopAtCurrentFloor(): boolean {
-        if (this.direction === Direction.UP) {
-            return this.upDestinations.has(this.currentFloor);
-        }
-
-        if (this.direction === Direction.DOWN) {
-            return this.downDestinations.has(this.currentFloor);
-        }
-
-        return false;
+        return this.destinationsSet.has(this.currentFloor);
     }
 
     public clearCurrentFloorDestination(): void {
-        if (this.direction === Direction.UP) {
-            this.upDestinations.delete(this.currentFloor);
-        } else if (this.direction === Direction.DOWN) {
-            this.downDestinations.delete(this.currentFloor);
-        }
+        this.destinationsSet.delete(this.currentFloor);
     }
 
     public step(): void {
@@ -100,15 +83,16 @@ export class StandardElevator extends BaseElevator {
             return;
         }
 
-        if (this.direction === Direction.UP) {
+        if (this.direction === Direction.UP && this.currentFloor < 10) {
             this.currentFloor++;
-        } else if (this.direction === Direction.DOWN) {
+        } else if (this.direction === Direction.DOWN && this.currentFloor > 1) {
             this.currentFloor--;
         }
 
         if (this.shouldStopAtCurrentFloor()) {
             this.openDoor(false);
             this.clearCurrentFloorDestination();
+            this.updateDirection();
             return;
         }
 
@@ -121,35 +105,32 @@ export class StandardElevator extends BaseElevator {
             currentFloor: this.currentFloor,
             direction: this.direction,
             doorState: this.doorState,
-            destinations: [...this.upDestinations, ...this.downDestinations]
+            destinations: Array.from(this.destinationsSet)
         };
     }
 
     private updateDirection(): void {
-        const hasUp = this.upDestinations.size > 0;
-        const hasDown = this.downDestinations.size > 0;
-
-        if (!hasUp && !hasDown) {
+        if (this.destinationsSet.size === 0) {
             this.direction = Direction.IDLE;
             return;
         }
 
-        if (this.direction === Direction.UP) {
-            const hasMoreAbove = Array.from(this.upDestinations).some(f => f >= this.currentFloor);
+        const targets = Array.from(this.destinationsSet);
+        const hasAbove = targets.some((f) => f > this.currentFloor);
+        const hasBelow = targets.some((f) => f < this.currentFloor);
 
-            if (!hasMoreAbove && hasDown) {
-                this.direction = Direction.DOWN;
+        if (this.direction === Direction.UP) {
+            if (!hasAbove) {
+                this.direction = hasBelow ? Direction.DOWN : Direction.IDLE;
             }
         } else if (this.direction === Direction.DOWN) {
-            const hasMoreBelow = Array.from(this.downDestinations).some(f => f <= this.currentFloor);
-
-            if (!hasMoreBelow && hasUp) {
-                this.direction = Direction.UP;
+            if (!hasBelow) {
+                this.direction = hasAbove ? Direction.UP : Direction.IDLE;
             }
         } else if (this.direction === Direction.IDLE) {
-            if (hasUp) {
+            if (hasAbove) {
                 this.direction = Direction.UP;
-            } else if (hasDown) {
+            } else if (hasBelow) {
                 this.direction = Direction.DOWN;
             }
         }
