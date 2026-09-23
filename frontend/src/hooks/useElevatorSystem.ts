@@ -38,9 +38,9 @@ export const useElevatorSystem = () => {
         }
     };
 
-    const selectDestination = (elevatorId: number, floor: number) => {
+    const selectDestination = (elevatorId: number, targetFloor: number) => {
         if (socket) {
-            socket.emit('selectDestination', { elevatorId, floor });
+            socket.emit('selectDestination', { elevatorId, targetFloor });
         }
     };
 
